@@ -1,0 +1,207 @@
+<!--
+Name: index.html
+Version: 1.0.0
+Purpose: Main dashboard for vehicle maintenance tracking application
+Path: /home/ubuntu/vehicle_maintenance_app/index.html
+Copyright: 2025 Superior Networks LLC
+
+Key Features:
+- Mobile-responsive dashboard interface
+- Vehicle overview cards
+- Upcoming maintenance alerts
+- Quick action navigation
+- Real-time data integration with Google Sheets
+
+Input: 
+- User interactions (clicks, form submissions)
+- Data from Google Sheets via Apps Script
+
+Output:
+- Interactive dashboard display
+- Navigation to other app sections
+- Maintenance alerts and reminders
+
+Dependencies:
+- styles.css (main stylesheet)
+- app.js (main application logic)
+- google_sheets.js (Google Sheets integration)
+- Google Apps Script backend
+
+Change Log:
+2025-08-19 v1.0.0 - Initial release (Dwain Henderson Jr)
+-->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vehicle Maintenance Manager - Dashboard</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#1e3a8a">
+    <meta name="description" content="Comprehensive vehicle maintenance tracking and management system">
+</head>
+<body>
+    <!-- Header Navigation -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <h1 class="logo">
+                    <span class="logo-icon">🚗</span>
+                    Vehicle Manager
+                </h1>
+                <button class="menu-toggle" id="menuToggle" aria-label="Toggle menu">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Navigation Menu -->
+    <nav class="nav-menu" id="navMenu">
+        <div class="container">
+            <ul class="nav-list">
+                <li><a href="index.html" class="nav-link active">Dashboard</a></li>
+                <li><a href="vehicle_manager.html" class="nav-link">Vehicles</a></li>
+                <li><a href="maintenance_log.html" class="nav-link">Maintenance</a></li>
+                <li><a href="receipt_manager.html" class="nav-link">Receipts</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="container">
+            <!-- Dashboard Header -->
+            <section class="dashboard-header">
+                <h2>Dashboard Overview</h2>
+                <p class="dashboard-subtitle">Manage your vehicles and track maintenance schedules</p>
+            </section>
+
+            <!-- Quick Stats -->
+            <section class="quick-stats">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">🚗</div>
+                        <div class="stat-content">
+                            <h3 class="stat-number" id="totalVehicles">0</h3>
+                            <p class="stat-label">Total Vehicles</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">⚠️</div>
+                        <div class="stat-content">
+                            <h3 class="stat-number" id="overdueItems">0</h3>
+                            <p class="stat-label">Overdue Items</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🔧</div>
+                        <div class="stat-content">
+                            <h3 class="stat-number" id="upcomingMaintenance">0</h3>
+                            <p class="stat-label">Upcoming</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">💰</div>
+                        <div class="stat-content">
+                            <h3 class="stat-number" id="monthlySpend">$0</h3>
+                            <p class="stat-label">This Month</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Alerts Section -->
+            <section class="alerts-section">
+                <h3>Maintenance Alerts</h3>
+                <div class="alerts-container" id="alertsContainer">
+                    <!-- Alerts will be populated by JavaScript -->
+                    <div class="no-alerts" id="noAlerts">
+                        <p>No maintenance alerts at this time</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Vehicle Overview -->
+            <section class="vehicles-overview">
+                <div class="section-header">
+                    <h3>Your Vehicles</h3>
+                    <a href="vehicle_manager.html" class="btn btn-secondary">Manage Vehicles</a>
+                </div>
+                <div class="vehicles-grid" id="vehiclesGrid">
+                    <!-- Vehicle cards will be populated by JavaScript -->
+                    <div class="no-vehicles" id="noVehicles">
+                        <div class="empty-state">
+                            <div class="empty-icon">🚗</div>
+                            <h4>No vehicles added yet</h4>
+                            <p>Add your first vehicle to start tracking maintenance</p>
+                            <a href="vehicle_manager.html" class="btn btn-primary">Add Vehicle</a>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Recent Activity -->
+            <section class="recent-activity">
+                <h3>Recent Activity</h3>
+                <div class="activity-list" id="activityList">
+                    <!-- Recent activity will be populated by JavaScript -->
+                    <div class="no-activity" id="noActivity">
+                        <p>No recent activity</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Quick Actions -->
+            <section class="quick-actions">
+                <h3>Quick Actions</h3>
+                <div class="actions-grid">
+                    <a href="maintenance_log.html" class="action-card">
+                        <div class="action-icon">🔧</div>
+                        <h4>Log Maintenance</h4>
+                        <p>Record new maintenance activity</p>
+                    </a>
+                    <a href="receipt_manager.html" class="action-card">
+                        <div class="action-icon">📄</div>
+                        <h4>Add Receipt</h4>
+                        <p>Upload and organize receipts</p>
+                    </a>
+                    <a href="vehicle_manager.html" class="action-card">
+                        <div class="action-icon">➕</div>
+                        <h4>Add Vehicle</h4>
+                        <p>Register a new vehicle</p>
+                    </a>
+                    <button class="action-card" id="syncData">
+                        <div class="action-icon">🔄</div>
+                        <h4>Sync Data</h4>
+                        <p>Update from Google Sheets</p>
+                    </button>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Superior Networks LLC. All rights reserved.</p>
+            <p>Developed by Dwain Henderson Jr.</p>
+        </div>
+    </footer>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner"></div>
+        <p>Loading...</p>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/google_sheets.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
+

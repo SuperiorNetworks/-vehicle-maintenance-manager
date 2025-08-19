@@ -1,0 +1,416 @@
+<!--
+Name: receipt_manager.html
+Version: 1.0.0
+Purpose: Receipt management interface for storing and organizing maintenance receipts
+Path: /home/ubuntu/vehicle_maintenance_app/receipt_manager.html
+Copyright: 2025 Superior Networks LLC
+
+Key Features:
+- Upload and store receipt images
+- Categorize receipts by maintenance type
+- Search and filter receipt database
+- Link receipts to maintenance records
+- Export capabilities for tax purposes
+- Mobile-friendly photo capture
+
+Input: 
+- User file uploads (receipt images)
+- Form submissions (receipt metadata)
+- User interactions (search, filter, categorize)
+
+Output:
+- Receipt gallery interface
+- Search and filter results
+- Receipt details and metadata
+- Export functionality
+
+Dependencies:
+- styles.css (main stylesheet)
+- receipt_manager.js (receipt management logic)
+- google_sheets.js (Google Sheets integration)
+- Google Apps Script backend
+
+Change Log:
+2025-08-19 v1.0.0 - Initial release (Dwain Henderson Jr)
+-->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Receipt Manager - Vehicle Maintenance Manager</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <meta name="theme-color" content="#1e3a8a">
+    <meta name="description" content="Manage and organize vehicle maintenance receipts and documentation">
+</head>
+<body>
+    <!-- Header Navigation -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <h1 class="logo">
+                    <span class="logo-icon">🚗</span>
+                    Vehicle Manager
+                </h1>
+                <button class="menu-toggle" id="menuToggle" aria-label="Toggle menu">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Navigation Menu -->
+    <nav class="nav-menu" id="navMenu">
+        <div class="container">
+            <ul class="nav-list">
+                <li><a href="index.html" class="nav-link">Dashboard</a></li>
+                <li><a href="vehicle_manager.html" class="nav-link">Vehicles</a></li>
+                <li><a href="maintenance_log.html" class="nav-link">Maintenance</a></li>
+                <li><a href="receipt_manager.html" class="nav-link active">Receipts</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="container">
+            <!-- Page Header -->
+            <section class="page-header">
+                <div class="section-header">
+                    <div>
+                        <h2>Receipt Manager</h2>
+                        <p class="page-subtitle">Store and organize your maintenance receipts</p>
+                    </div>
+                    <div class="header-actions">
+                        <button class="btn btn-secondary" id="exportReceiptsBtn">
+                            <span>📊</span> Export
+                        </button>
+                        <button class="btn btn-primary" id="addReceiptBtn">
+                            <span>📄</span> Add Receipt
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Receipt Summary -->
+            <section class="receipt-summary">
+                <div class="summary-cards">
+                    <div class="summary-card">
+                        <div class="summary-icon">📄</div>
+                        <div class="summary-content">
+                            <h4 id="totalReceipts">0</h4>
+                            <p>Total Receipts</p>
+                        </div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-icon">💰</div>
+                        <div class="summary-content">
+                            <h4 id="totalAmount">$0</h4>
+                            <p>Total Amount</p>
+                        </div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-icon">📅</div>
+                        <div class="summary-content">
+                            <h4 id="thisMonth">$0</h4>
+                            <p>This Month</p>
+                        </div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-icon">📈</div>
+                        <div class="summary-content">
+                            <h4 id="thisYear">$0</h4>
+                            <p>This Year</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Filters and Search -->
+            <section class="receipt-filters">
+                <div class="filters-container">
+                    <div class="filter-group">
+                        <label for="receiptVehicleFilter" class="form-label">Vehicle</label>
+                        <select id="receiptVehicleFilter" class="form-select">
+                            <option value="">All Vehicles</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="receiptCategoryFilter" class="form-label">Category</label>
+                        <select id="receiptCategoryFilter" class="form-select">
+                            <option value="">All Categories</option>
+                            <option value="oil_change">Oil Change</option>
+                            <option value="tire_service">Tire Service</option>
+                            <option value="brake_service">Brake Service</option>
+                            <option value="engine_repair">Engine Repair</option>
+                            <option value="transmission">Transmission</option>
+                            <option value="inspection">Inspection</option>
+                            <option value="parts">Parts</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="receiptDateFilter" class="form-label">Date Range</label>
+                        <select id="receiptDateFilter" class="form-select">
+                            <option value="">All Time</option>
+                            <option value="30">Last 30 Days</option>
+                            <option value="90">Last 3 Months</option>
+                            <option value="365">Last Year</option>
+                            <option value="custom">Custom Range</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="searchReceipts" class="form-label">Search</label>
+                        <input type="text" id="searchReceipts" class="form-input" 
+                               placeholder="Search receipts...">
+                    </div>
+                </div>
+                
+                <!-- Custom Date Range -->
+                <div class="custom-date-range" id="customDateRange" style="display: none;">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="startDate" class="form-label">Start Date</label>
+                            <input type="date" id="startDate" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label for="endDate" class="form-label">End Date</label>
+                            <input type="date" id="endDate" class="form-input">
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- View Toggle -->
+            <section class="view-controls">
+                <div class="view-toggle">
+                    <button class="view-btn active" id="gridViewBtn" data-view="grid">
+                        <span>⊞</span> Grid
+                    </button>
+                    <button class="view-btn" id="listViewBtn" data-view="list">
+                        <span>☰</span> List
+                    </button>
+                </div>
+                <div class="sort-controls">
+                    <label for="sortBy" class="form-label">Sort by:</label>
+                    <select id="sortBy" class="form-select">
+                        <option value="date_desc">Date (Newest)</option>
+                        <option value="date_asc">Date (Oldest)</option>
+                        <option value="amount_desc">Amount (High to Low)</option>
+                        <option value="amount_asc">Amount (Low to High)</option>
+                        <option value="vendor">Vendor</option>
+                    </select>
+                </div>
+            </section>
+
+            <!-- Receipts Container -->
+            <section class="receipts-section">
+                <div class="receipts-container grid-view" id="receiptsContainer">
+                    <!-- Receipts will be populated by JavaScript -->
+                    <div class="no-receipts" id="noReceiptsMessage">
+                        <div class="empty-state">
+                            <div class="empty-icon">📄</div>
+                            <h4>No receipts uploaded yet</h4>
+                            <p>Start organizing your maintenance receipts</p>
+                            <button class="btn btn-primary" id="addFirstReceiptBtn">Upload First Receipt</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- Add/Edit Receipt Modal -->
+    <div class="modal-overlay" id="receiptModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="receiptModalTitle">Add Receipt</h3>
+                <button class="modal-close" id="closeReceiptModal" aria-label="Close modal">&times;</button>
+            </div>
+            
+            <form class="receipt-form" id="receiptForm">
+                <div class="form-group">
+                    <label for="receiptVehicle" class="form-label">Vehicle *</label>
+                    <select id="receiptVehicle" name="vehicle_id" class="form-select" required>
+                        <option value="">Select a vehicle</option>
+                    </select>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="receiptDate" class="form-label">Receipt Date *</label>
+                        <input type="date" id="receiptDate" name="receipt_date" class="form-input" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="receiptAmount" class="form-label">Amount *</label>
+                        <input type="number" id="receiptAmount" name="amount" class="form-input" 
+                               min="0" step="0.01" placeholder="0.00" required>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="receiptVendor" class="form-label">Vendor *</label>
+                        <input type="text" id="receiptVendor" name="vendor" class="form-input" 
+                               placeholder="e.g., Joe's Auto Shop" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="receiptCategory" class="form-label">Category *</label>
+                        <select id="receiptCategory" name="category" class="form-select" required>
+                            <option value="">Select category</option>
+                            <option value="oil_change">Oil Change</option>
+                            <option value="tire_service">Tire Service</option>
+                            <option value="brake_service">Brake Service</option>
+                            <option value="engine_repair">Engine Repair</option>
+                            <option value="transmission">Transmission</option>
+                            <option value="inspection">Inspection</option>
+                            <option value="parts">Parts</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="receiptDescription" class="form-label">Description</label>
+                    <textarea id="receiptDescription" name="description" class="form-textarea" 
+                              placeholder="Description of services or parts..."></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="receiptImage" class="form-label">Receipt Image *</label>
+                    <input type="file" id="receiptImage" name="image" class="form-input" 
+                           accept="image/*" capture="environment" required>
+                    <div class="receipt-preview" id="receiptPreview"></div>
+                </div>
+
+                <div class="form-group">
+                    <label for="linkedMaintenance" class="form-label">Link to Maintenance Record</label>
+                    <select id="linkedMaintenance" name="log_id" class="form-select">
+                        <option value="">No linked maintenance</option>
+                    </select>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" id="cancelReceiptBtn">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="saveReceiptBtn">
+                        <span id="saveReceiptText">Save Receipt</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Receipt Detail Modal -->
+    <div class="modal-overlay" id="receiptDetailModal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3>Receipt Details</h3>
+                <div class="modal-actions">
+                    <button class="btn btn-icon btn-secondary" id="editReceiptBtn" title="Edit Receipt">
+                        <span>✏️</span>
+                    </button>
+                    <button class="btn btn-icon btn-danger" id="deleteReceiptBtn" title="Delete Receipt">
+                        <span>🗑️</span>
+                    </button>
+                    <button class="modal-close" id="closeReceiptDetailModal" aria-label="Close modal">&times;</button>
+                </div>
+            </div>
+            <div class="modal-body">
+                <div class="receipt-detail-content" id="receiptDetailContent">
+                    <!-- Receipt details will be populated by JavaScript -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div class="modal-overlay" id="deleteReceiptModal">
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h3>Confirm Delete</h3>
+                <button class="modal-close" id="closeDeleteReceiptModal" aria-label="Close modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete this receipt? This action cannot be undone.</p>
+                <p><strong id="deleteReceiptDetails"></strong></p>
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn btn-secondary" id="cancelDeleteReceiptBtn">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteReceiptBtn">Delete Receipt</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Export Modal -->
+    <div class="modal-overlay" id="exportModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Export Receipts</h3>
+                <button class="modal-close" id="closeExportModal" aria-label="Close modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="exportFormat" class="form-label">Export Format</label>
+                    <select id="exportFormat" class="form-select">
+                        <option value="csv">CSV (Spreadsheet)</option>
+                        <option value="pdf">PDF Report</option>
+                        <option value="json">JSON Data</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="exportDateRange" class="form-label">Date Range</label>
+                    <select id="exportDateRange" class="form-select">
+                        <option value="all">All Time</option>
+                        <option value="year">This Year</option>
+                        <option value="quarter">This Quarter</option>
+                        <option value="month">This Month</option>
+                        <option value="custom">Custom Range</option>
+                    </select>
+                </div>
+                <div class="export-custom-range" id="exportCustomRange" style="display: none;">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="exportStartDate" class="form-label">Start Date</label>
+                            <input type="date" id="exportStartDate" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label for="exportEndDate" class="form-label">End Date</label>
+                            <input type="date" id="exportEndDate" class="form-input">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn btn-secondary" id="cancelExportBtn">Cancel</button>
+                <button type="button" class="btn btn-primary" id="confirmExportBtn">Export</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Superior Networks LLC. All rights reserved.</p>
+            <p>Developed by Dwain Henderson Jr.</p>
+        </div>
+    </footer>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner"></div>
+        <p>Loading...</p>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Scripts -->
+    <script src="js/google_sheets.js"></script>
+    <script src="js/receipt_manager.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
+

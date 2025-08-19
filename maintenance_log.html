@@ -1,0 +1,366 @@
+<!--
+Name: maintenance_log.html
+Version: 1.0.0
+Purpose: Maintenance tracking interface for logging and managing vehicle maintenance activities
+Path: /home/ubuntu/vehicle_maintenance_app/maintenance_log.html
+Copyright: 2025 Superior Networks LLC
+
+Key Features:
+- Log new maintenance activities
+- Track oil changes with intervals
+- Record tire rotations
+- Service history timeline
+- Cost tracking and analytics
+- Photo attachments for maintenance records
+- Mileage-based and date-based reminders
+
+Input: 
+- User form submissions (maintenance data)
+- File uploads (maintenance photos)
+- User interactions (edit, delete, filter actions)
+
+Output:
+- Maintenance logging interface
+- Service history display
+- Cost analytics
+- Maintenance reminders
+- Photo galleries
+
+Dependencies:
+- styles.css (main stylesheet)
+- maintenance_log.js (maintenance tracking logic)
+- google_sheets.js (Google Sheets integration)
+- Google Apps Script backend
+
+Change Log:
+2025-08-19 v1.0.0 - Initial release (Dwain Henderson Jr)
+-->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Maintenance Log - Vehicle Maintenance Manager</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <meta name="theme-color" content="#1e3a8a">
+    <meta name="description" content="Track and manage vehicle maintenance activities and schedules">
+</head>
+<body>
+    <!-- Header Navigation -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <h1 class="logo">
+                    <span class="logo-icon">🚗</span>
+                    Vehicle Manager
+                </h1>
+                <button class="menu-toggle" id="menuToggle" aria-label="Toggle menu">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Navigation Menu -->
+    <nav class="nav-menu" id="navMenu">
+        <div class="container">
+            <ul class="nav-list">
+                <li><a href="index.html" class="nav-link">Dashboard</a></li>
+                <li><a href="vehicle_manager.html" class="nav-link">Vehicles</a></li>
+                <li><a href="maintenance_log.html" class="nav-link active">Maintenance</a></li>
+                <li><a href="receipt_manager.html" class="nav-link">Receipts</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="container">
+            <!-- Page Header -->
+            <section class="page-header">
+                <div class="section-header">
+                    <div>
+                        <h2>Maintenance Log</h2>
+                        <p class="page-subtitle">Track and manage vehicle maintenance activities</p>
+                    </div>
+                    <button class="btn btn-primary" id="addMaintenanceBtn">
+                        <span>🔧</span> Log Maintenance
+                    </button>
+                </div>
+            </section>
+
+            <!-- Quick Actions -->
+            <section class="quick-maintenance-actions">
+                <div class="actions-grid">
+                    <button class="action-card" id="quickOilChange">
+                        <div class="action-icon">🛢️</div>
+                        <h4>Oil Change</h4>
+                        <p>Quick oil change entry</p>
+                    </button>
+                    <button class="action-card" id="quickTireRotation">
+                        <div class="action-icon">🔄</div>
+                        <h4>Tire Rotation</h4>
+                        <p>Log tire rotation</p>
+                    </button>
+                    <button class="action-card" id="quickInspection">
+                        <div class="action-icon">🔍</div>
+                        <h4>Inspection</h4>
+                        <p>Record inspection</p>
+                    </button>
+                    <button class="action-card" id="quickRepair">
+                        <div class="action-icon">🔨</div>
+                        <h4>Repair</h4>
+                        <p>Log repair work</p>
+                    </button>
+                </div>
+            </section>
+
+            <!-- Filters and Search -->
+            <section class="maintenance-filters">
+                <div class="filters-container">
+                    <div class="filter-group">
+                        <label for="vehicleFilter" class="form-label">Vehicle</label>
+                        <select id="vehicleFilter" class="form-select">
+                            <option value="">All Vehicles</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="typeFilter" class="form-label">Type</label>
+                        <select id="typeFilter" class="form-select">
+                            <option value="">All Types</option>
+                            <option value="oil_change">Oil Change</option>
+                            <option value="tire_rotation">Tire Rotation</option>
+                            <option value="brake_service">Brake Service</option>
+                            <option value="inspection">Inspection</option>
+                            <option value="repair">Repair</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="dateFilter" class="form-label">Date Range</label>
+                        <select id="dateFilter" class="form-select">
+                            <option value="">All Time</option>
+                            <option value="30">Last 30 Days</option>
+                            <option value="90">Last 3 Months</option>
+                            <option value="365">Last Year</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="searchMaintenance" class="form-label">Search</label>
+                        <input type="text" id="searchMaintenance" class="form-input" 
+                               placeholder="Search maintenance records...">
+                    </div>
+                </div>
+            </section>
+
+            <!-- Maintenance Summary -->
+            <section class="maintenance-summary">
+                <div class="summary-cards">
+                    <div class="summary-card">
+                        <div class="summary-icon">📊</div>
+                        <div class="summary-content">
+                            <h4 id="totalRecords">0</h4>
+                            <p>Total Records</p>
+                        </div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-icon">💰</div>
+                        <div class="summary-content">
+                            <h4 id="totalCost">$0</h4>
+                            <p>Total Cost</p>
+                        </div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-icon">📅</div>
+                        <div class="summary-content">
+                            <h4 id="lastService">Never</h4>
+                            <p>Last Service</p>
+                        </div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-icon">⏰</div>
+                        <div class="summary-content">
+                            <h4 id="nextService">None</h4>
+                            <p>Next Due</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Maintenance Records -->
+            <section class="maintenance-records">
+                <div class="records-container" id="recordsContainer">
+                    <!-- Records will be populated by JavaScript -->
+                    <div class="no-records" id="noRecordsMessage">
+                        <div class="empty-state">
+                            <div class="empty-icon">🔧</div>
+                            <h4>No maintenance records yet</h4>
+                            <p>Start tracking your vehicle maintenance</p>
+                            <button class="btn btn-primary" id="addFirstRecordBtn">Log First Maintenance</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- Add/Edit Maintenance Modal -->
+    <div class="modal-overlay" id="maintenanceModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="maintenanceModalTitle">Log Maintenance</h3>
+                <button class="modal-close" id="closeMaintenanceModal" aria-label="Close modal">&times;</button>
+            </div>
+            
+            <form class="maintenance-form" id="maintenanceForm">
+                <div class="form-group">
+                    <label for="maintenanceVehicle" class="form-label">Vehicle *</label>
+                    <select id="maintenanceVehicle" name="vehicle_id" class="form-select" required>
+                        <option value="">Select a vehicle</option>
+                    </select>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="maintenanceType" class="form-label">Maintenance Type *</label>
+                        <select id="maintenanceType" name="maintenance_type" class="form-select" required>
+                            <option value="">Select type</option>
+                            <option value="oil_change">Oil Change</option>
+                            <option value="tire_rotation">Tire Rotation</option>
+                            <option value="brake_service">Brake Service</option>
+                            <option value="transmission_service">Transmission Service</option>
+                            <option value="coolant_flush">Coolant Flush</option>
+                            <option value="air_filter">Air Filter</option>
+                            <option value="spark_plugs">Spark Plugs</option>
+                            <option value="battery">Battery</option>
+                            <option value="inspection">Inspection</option>
+                            <option value="repair">Repair</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="serviceDate" class="form-label">Service Date *</label>
+                        <input type="date" id="serviceDate" name="service_date" class="form-input" required>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="currentMileage" class="form-label">Current Mileage</label>
+                        <input type="number" id="currentMileage" name="mileage" class="form-input" 
+                               min="0" placeholder="e.g., 45000">
+                    </div>
+                    <div class="form-group">
+                        <label for="serviceCost" class="form-label">Cost</label>
+                        <input type="number" id="serviceCost" name="cost" class="form-input" 
+                               min="0" step="0.01" placeholder="0.00">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="serviceProvider" class="form-label">Service Provider</label>
+                    <input type="text" id="serviceProvider" name="service_provider" class="form-input" 
+                           placeholder="e.g., Joe's Auto Shop, DIY">
+                </div>
+
+                <div class="form-group">
+                    <label for="maintenanceDescription" class="form-label">Description *</label>
+                    <textarea id="maintenanceDescription" name="description" class="form-textarea" 
+                              placeholder="Describe the maintenance performed..." required></textarea>
+                </div>
+
+                <!-- Oil Change Specific Fields -->
+                <div class="oil-change-fields" id="oilChangeFields" style="display: none;">
+                    <h4>Oil Change Details</h4>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="oilType" class="form-label">Oil Type</label>
+                            <select id="oilType" name="oil_type" class="form-select">
+                                <option value="">Select oil type</option>
+                                <option value="conventional">Conventional</option>
+                                <option value="high_mileage">High Mileage</option>
+                                <option value="synthetic_blend">Synthetic Blend</option>
+                                <option value="full_synthetic">Full Synthetic</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="oilViscosity" class="form-label">Oil Viscosity</label>
+                            <input type="text" id="oilViscosity" name="oil_viscosity" class="form-input" 
+                                   placeholder="e.g., 5W-30, 0W-20">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="nextOilChange" class="form-label">Next Oil Change (Miles)</label>
+                            <input type="number" id="nextOilChange" name="next_service_mileage" class="form-input" 
+                                   min="0" placeholder="e.g., 48000">
+                        </div>
+                        <div class="form-group">
+                            <label for="nextOilChangeDate" class="form-label">Next Oil Change (Date)</label>
+                            <input type="date" id="nextOilChangeDate" name="next_service_date" class="form-input">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="maintenancePhotos" class="form-label">Photos</label>
+                    <input type="file" id="maintenancePhotos" name="photos" class="form-input" 
+                           accept="image/*" multiple capture="environment">
+                    <div class="photos-preview" id="photosPreview"></div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" id="cancelMaintenanceBtn">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="saveMaintenanceBtn">
+                        <span id="saveMaintenanceText">Save Maintenance</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div class="modal-overlay" id="deleteMaintenanceModal">
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h3>Confirm Delete</h3>
+                <button class="modal-close" id="closeDeleteMaintenanceModal" aria-label="Close modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete this maintenance record? This action cannot be undone.</p>
+                <p><strong id="deleteMaintenanceDetails"></strong></p>
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn btn-secondary" id="cancelDeleteMaintenanceBtn">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteMaintenanceBtn">Delete Record</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Superior Networks LLC. All rights reserved.</p>
+            <p>Developed by Dwain Henderson Jr.</p>
+        </div>
+    </footer>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner"></div>
+        <p>Loading...</p>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Scripts -->
+    <script src="js/google_sheets.js"></script>
+    <script src="js/maintenance_log.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
+
