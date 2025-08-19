@@ -35,7 +35,7 @@ Change Log:
 
 // Google Sheets Configuration
 const GOOGLE_CONFIG = {
-    // This will be set when the Google Apps Script is deployed
+    // This will be set when the Google Apps Script is deployed.
     webAppUrl: 'https://script.google.com/macros/s/AKfycbzaeokO59Gob_Ks3BeLz-nORSmZ0cYhxI2Qai_coMnozg3dGuHKU7l6YcPCtmvDXiMV/exec', // To be configured during setup
     apiVersion: 'v1',
     timeout: 30000, // 30 seconds
