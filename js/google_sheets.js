@@ -36,7 +36,7 @@ Change Log:
 // Google Sheets Configuration
 const GOOGLE_CONFIG = {
     // This will be set when the Google Apps Script is deployed
-    webAppUrl: 'https://script.googleusercontent.com/a/macros/superiornetworks.biz/echo?user_content_key=AehSKLgSe4zTveX0ta7yOtcmx9gJVMFK8Q5SHlnIDjvBYmXo7A0w7MMoXmItJakAsQ3-Qr4eYEiGQe8L1SvqkV9F0KqihSpu1dz5cX5nQCvP7lUtu0kl9BDhpH8JCnF_RgwpX-L3ADNJoQd9b3AYnJ5dH_ITNVSzgZ9znphZwS1DWFkPrtvKyyzCLgGzMSJnKe6Q07Yo8f_CphZImjJOpQ4N9Wo5iAW7_il-ODmbMXnpJAAUEQKHSPEp1LlRvF7N-t3aX-2yo7xxWl_z6h7sHSi_VGz7SJTBD_xvcaf8VXB5wF_hjpUye8yKULUwETo9uA&lib=M8sqrViPeyNgzu8uupTxb006PXK_89AVg', // To be configured during setup
+    webAppUrl: 'https://script.google.com/macros/s/AKfycbw2_SA49SqFj_FUWmdmxp94Stin5KDD9Hw3M1gknJ5crDFlOPcozWafC51oiWjh10mZ/exec', // To be configured during setup
     apiVersion: 'v1',
     timeout: 30000, // 30 seconds
     retryAttempts: 3,
