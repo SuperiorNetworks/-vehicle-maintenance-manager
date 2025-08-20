@@ -1,15 +1,7 @@
 /*
 Name: google_sheets.js
-Version: 1.0.3
-Purpose: Google Sheets integration with CORS-friendly requests
-Path: /home/ubuntu/vehicle_maintenance_app/js/google_sheets.js
-Copyright: 2025 Superior Networks LLC
-
-Change Log:
-2025-08-19 v1.0.0 - Initial release (Dwain Henderson Jr)
-2025-08-19 v1.0.1 - Added Google Workspace compatibility (Dwain Henderson Jr)
-2025-08-19 v1.0.2 - Fixed API routing for Google Apps Script query parameters (Dwain Henderson Jr)
-2025-08-20 v1.0.3 - CORS-friendly version using simple GET requests (Dwain Henderson Jr)
+Version: 1.0.4
+Purpose: Google Sheets integration with proper POST request handling
 */
 
 // Google Sheets Configuration
@@ -53,7 +45,7 @@ function initializeGoogleSheets( ) {
 }
 
 /**
- * Make API request using simple GET with JSONP-style approach
+ * Make API request with proper POST handling
  */
 async function makeApiRequest(action, method = 'GET', data = null) {
     if (!GOOGLE_CONFIG.webAppUrl) {
@@ -61,16 +53,26 @@ async function makeApiRequest(action, method = 'GET', data = null) {
     }
     
     let url = GOOGLE_CONFIG.webAppUrl;
+    let requestOptions = {
+        method: 'GET',
+        mode: 'cors',
+        cache: 'no-cache'
+    };
     
-    if (action) {
+    if (method === 'POST' && data) {
+        // For POST requests, send data in the request body
         url += '?action=' + action;
-    }
-    
-    // For POST data, we'll encode it as URL parameters for now
-    if (data && method === 'POST') {
-        const params = new URLSearchParams();
-        params.append('data', JSON.stringify(data));
-        url += '&' + params.toString();
+        requestOptions = {
+            method: 'POST',
+            mode: 'cors',
+            cache: 'no-cache',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data)
+        };
+    } else if (action) {
+        url += '?action=' + action;
     }
     
     let lastError;
@@ -79,12 +81,7 @@ async function makeApiRequest(action, method = 'GET', data = null) {
         try {
             console.log(`API Request (attempt ${attempt}): ${method} ${action}`);
             
-            // Use simple fetch with no-cors mode to avoid CORS issues
-            const response = await fetch(url, {
-                method: 'GET', // Always use GET to avoid CORS preflight
-                mode: 'cors',
-                cache: 'no-cache'
-            });
+            const response = await fetch(url, requestOptions);
             
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -110,6 +107,47 @@ async function makeApiRequest(action, method = 'GET', data = null) {
     }
     
     throw lastError;
+}
+
+/**
+ * Add new vehicle
+ */
+async function addVehicle(vehicleData) {
+    try {
+        const vehicleId = window.APP ? window.APP.generateId() : Date.now().toString();
+        const vehicle = {
+            vehicle_id: vehicleId,
+            ...vehicleData,
+            created_date: new Date().toISOString(),
+            last_updated: new Date().toISOString()
+        };
+        
+        console.log('Adding vehicle to Google Sheets:', vehicle);
+        
+        // Save to Google Sheets first
+        if (isOnline && GOOGLE_CONFIG.webAppUrl) {
+            try {
+                const result = await makeApiRequest('vehicles', 'POST', vehicle);
+                console.log('Vehicle saved to Google Sheets:', result);
+            } catch (error) {
+                console.warn('Failed to save to Google Sheets, saving locally:', error);
+            }
+        }
+        
+        // Save locally
+        if (window.APP) {
+            const vehicles = window.APP.getFromStorage('vehicles') || [];
+            vehicles.push(vehicle);
+            window.APP.saveToStorage('vehicles', vehicles);
+            window.APP.state.vehicles = vehicles;
+        }
+        
+        return vehicle;
+        
+    } catch (error) {
+        console.error('Failed to add vehicle:', error);
+        throw error;
+    }
 }
 
 /**
@@ -178,7 +216,7 @@ async function syncVehicles() {
                 window.APP.state.vehicles = mergedVehicles;
             }
             
-            console.log(`Synced ${response.data.length} vehicles`);
+            console.log(`Synced ${response.data.length} vehicles from Google Sheets`);
         }
     } catch (error) {
         console.error('Failed to sync vehicles:', error);
@@ -205,44 +243,6 @@ function mergeData(localData, remoteData, idField) {
     });
     
     return merged;
-}
-
-/**
- * Add new vehicle (simplified for now)
- */
-async function addVehicle(vehicleData) {
-    try {
-        const vehicleId = window.APP ? window.APP.generateId() : Date.now().toString();
-        const vehicle = {
-            vehicle_id: vehicleId,
-            ...vehicleData,
-            created_date: new Date().toISOString(),
-            last_updated: new Date().toISOString()
-        };
-        
-        // Save locally first
-        if (window.APP) {
-            const vehicles = window.APP.getFromStorage('vehicles') || [];
-            vehicles.push(vehicle);
-            window.APP.saveToStorage('vehicles', vehicles);
-            window.APP.state.vehicles = vehicles;
-        }
-        
-        // Try to sync to Google Sheets
-        if (isOnline && GOOGLE_CONFIG.webAppUrl) {
-            try {
-                await makeApiRequest('vehicles', 'POST', vehicle);
-            } catch (error) {
-                console.warn('Failed to sync vehicle to cloud, saved locally:', error);
-            }
-        }
-        
-        return vehicle;
-        
-    } catch (error) {
-        console.error('Failed to add vehicle:', error);
-        throw error;
-    }
 }
 
 // Export functions for global access
