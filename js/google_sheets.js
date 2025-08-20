@@ -1,12 +1,12 @@
 /*
 Name: google_sheets.js
-Version: 1.0.0
+Version: 1.0.2
 Purpose: Google Sheets integration for vehicle maintenance data storage and synchronization
 Path: /home/ubuntu/vehicle_maintenance_app/js/google_sheets.js
 Copyright: 2025 Superior Networks LLC
 
 Key Features:
-- Google Apps Script web app integration
+- Google Apps Script web app integration with proper query parameter routing
 - CRUD operations for vehicles, maintenance, receipts, and reminders
 - Data synchronization between local storage and Google Sheets
 - Error handling and retry logic
@@ -31,26 +31,28 @@ Dependencies:
 
 Change Log:
 2025-08-19 v1.0.0 - Initial release (Dwain Henderson Jr)
+2025-08-19 v1.0.1 - Added Google Workspace compatibility (Dwain Henderson Jr)
+2025-08-19 v1.0.2 - Fixed API routing for Google Apps Script query parameters (Dwain Henderson Jr)
 */
 
 // Google Sheets Configuration
 const GOOGLE_CONFIG = {
-    // This will be set when the Google Apps Script is deployed.
-    webAppUrl: 'https://script.google.com/macros/s/AKfycbzaeokO59Gob_Ks3BeLz-nORSmZ0cYhxI2Qai_coMnozg3dGuHKU7l6YcPCtmvDXiMV/exec', // To be configured during setup
+    // Replace this with your Google Apps Script Web App URL
+    webAppUrl: 'https://script.google.com/macros/s/AKfycbzaeokO59Gob_Ks3BeLz-nORSmZ0cYhxI2Qai_coMnozg3dGuHKU7l6YcPCtmvDXiMV/exec',
     apiVersion: 'v1',
     timeout: 30000, // 30 seconds
     retryAttempts: 3,
     retryDelay: 1000 // 1 second
 };
 
-// API Endpoints
+// API Endpoints (converted to query parameters )
 const API_ENDPOINTS = {
-    vehicles: '/vehicles',
-    maintenance: '/maintenance',
-    receipts: '/receipts',
-    reminders: '/reminders',
-    sync: '/sync',
-    upload: '/upload'
+    vehicles: 'vehicles',
+    maintenance: 'maintenance',
+    receipts: 'receipts',
+    reminders: 'reminders',
+    sync: 'sync',
+    upload: 'upload'
 };
 
 // Connection status
@@ -64,10 +66,12 @@ function initializeGoogleSheets() {
     console.log('Initializing Google Sheets integration...');
     
     // Check if web app URL is configured
-    if (!GOOGLE_CONFIG.webAppUrl) {
+    if (!GOOGLE_CONFIG.webAppUrl || GOOGLE_CONFIG.webAppUrl.includes('YOUR_SCRIPT_ID')) {
         console.warn('Google Apps Script web app URL not configured');
         return false;
     }
+    
+    console.log('Google Sheets integration initialized');
     
     // Set up connection monitoring
     window.addEventListener('online', () => {
@@ -85,20 +89,22 @@ function initializeGoogleSheets() {
 }
 
 /**
- * Make API request to Google Apps Script
+ * Make API request to Google Apps Script using query parameters
  */
 async function makeApiRequest(endpoint, method = 'GET', data = null) {
     if (!GOOGLE_CONFIG.webAppUrl) {
         throw new Error('Google Apps Script web app URL not configured');
     }
     
-    const url = GOOGLE_CONFIG.webAppUrl + endpoint;
+    // Convert endpoint to query parameter for Google Apps Script
+    const action = endpoint.replace('/', '');
+    const url = GOOGLE_CONFIG.webAppUrl + (action ? '?action=' + action : '');
+    
     const options = {
         method: method,
         headers: {
             'Content-Type': 'application/json',
-        },
-        timeout: GOOGLE_CONFIG.timeout
+        }
     };
     
     if (data && (method === 'POST' || method === 'PUT')) {
@@ -110,9 +116,14 @@ async function makeApiRequest(endpoint, method = 'GET', data = null) {
     // Retry logic
     for (let attempt = 1; attempt <= GOOGLE_CONFIG.retryAttempts; attempt++) {
         try {
-            console.log(`API Request (attempt ${attempt}): ${method} ${endpoint}`);
+            console.log(`API Request (attempt ${attempt}): ${method} ${action}`);
+            
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), GOOGLE_CONFIG.timeout);
+            options.signal = controller.signal;
             
             const response = await fetch(url, options);
+            clearTimeout(timeoutId);
             
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -120,16 +131,16 @@ async function makeApiRequest(endpoint, method = 'GET', data = null) {
             
             const result = await response.json();
             
-            if (result.error) {
-                throw new Error(result.error);
+            if (result.status === 'error') {
+                throw new Error(result.message || 'Unknown API error');
             }
             
-            console.log(`API Request successful: ${method} ${endpoint}`);
+            console.log(`API Request successful: ${method} ${action}`);
             return result;
             
         } catch (error) {
             lastError = error;
-            console.error(`API Request failed (attempt ${attempt}):`, error);
+            console.error(`API Request failed (attempt ${attempt}):`, error.message);
             
             if (attempt < GOOGLE_CONFIG.retryAttempts) {
                 await new Promise(resolve => setTimeout(resolve, GOOGLE_CONFIG.retryDelay * attempt));
@@ -199,7 +210,8 @@ async function syncData() {
  */
 async function syncVehicles(lastSync) {
     try {
-        const response = await makeApiRequest(API_ENDPOINTS.vehicles + (lastSync ? `?since=${lastSync}` : ''));
+        const endpoint = API_ENDPOINTS.vehicles + (lastSync ? `?since=${lastSync}` : '');
+        const response = await makeApiRequest(endpoint);
         
         if (response.data && Array.isArray(response.data)) {
             // Merge with local data
@@ -225,7 +237,8 @@ async function syncVehicles(lastSync) {
  */
 async function syncMaintenanceRecords(lastSync) {
     try {
-        const response = await makeApiRequest(API_ENDPOINTS.maintenance + (lastSync ? `?since=${lastSync}` : ''));
+        const endpoint = API_ENDPOINTS.maintenance + (lastSync ? `?since=${lastSync}` : '');
+        const response = await makeApiRequest(endpoint);
         
         if (response.data && Array.isArray(response.data)) {
             const localRecords = window.APP ? window.APP.getFromStorage('maintenanceRecords') || [] : [];
@@ -249,7 +262,8 @@ async function syncMaintenanceRecords(lastSync) {
  */
 async function syncReceipts(lastSync) {
     try {
-        const response = await makeApiRequest(API_ENDPOINTS.receipts + (lastSync ? `?since=${lastSync}` : ''));
+        const endpoint = API_ENDPOINTS.receipts + (lastSync ? `?since=${lastSync}` : '');
+        const response = await makeApiRequest(endpoint);
         
         if (response.data && Array.isArray(response.data)) {
             const localReceipts = window.APP ? window.APP.getFromStorage('receipts') || [] : [];
@@ -273,7 +287,8 @@ async function syncReceipts(lastSync) {
  */
 async function syncReminders(lastSync) {
     try {
-        const response = await makeApiRequest(API_ENDPOINTS.reminders + (lastSync ? `?since=${lastSync}` : ''));
+        const endpoint = API_ENDPOINTS.reminders + (lastSync ? `?since=${lastSync}` : '');
+        const response = await makeApiRequest(endpoint);
         
         if (response.data && Array.isArray(response.data)) {
             const localReminders = window.APP ? window.APP.getFromStorage('reminders') || [] : [];
@@ -374,7 +389,7 @@ async function updateVehicle(vehicleId, vehicleData) {
         
         // Sync to Google Sheets if online
         if (isOnline && GOOGLE_CONFIG.webAppUrl) {
-            await makeApiRequest(API_ENDPOINTS.vehicles + '/' + vehicleId, 'PUT', updatedVehicle);
+            await makeApiRequest(API_ENDPOINTS.vehicles, 'PUT', updatedVehicle);
         }
         
         return updatedVehicle;
@@ -400,7 +415,7 @@ async function deleteVehicle(vehicleId) {
         
         // Sync to Google Sheets if online
         if (isOnline && GOOGLE_CONFIG.webAppUrl) {
-            await makeApiRequest(API_ENDPOINTS.vehicles + '/' + vehicleId, 'DELETE');
+            await makeApiRequest(API_ENDPOINTS.vehicles, 'DELETE', { vehicle_id: vehicleId });
         }
         
         return true;
@@ -498,10 +513,10 @@ async function uploadImage(file, folder = 'vehicle_images') {
         
         const response = await makeApiRequest(API_ENDPOINTS.upload, 'POST', uploadData);
         
-        if (response.url) {
-            return response.url;
+        if (response.status === 'success') {
+            return response.data;
         } else {
-            throw new Error('Upload failed - no URL returned');
+            throw new Error(response.message || 'Upload failed');
         }
         
     } catch (error) {
@@ -527,62 +542,30 @@ function fileToBase64(file) {
 }
 
 /**
- * Configure Google Apps Script web app URL
+ * Configure Google Sheets integration
  */
-function configureWebAppUrl(url) {
-    GOOGLE_CONFIG.webAppUrl = url;
-    console.log('Google Apps Script web app URL configured');
-    
-    // Save to local storage
-    if (window.APP) {
-        window.APP.saveToStorage('webAppUrl', url);
-    }
-    
-    // Initialize connection
+function configure(webAppUrl) {
+    GOOGLE_CONFIG.webAppUrl = webAppUrl;
+    console.log('Google Sheets integration configured with URL:', webAppUrl);
     return initializeGoogleSheets();
 }
 
-/**
- * Get configuration status
- */
-function getConfigurationStatus() {
-    return {
-        configured: !!GOOGLE_CONFIG.webAppUrl,
-        online: isOnline,
-        lastSync: lastSyncTime,
-        webAppUrl: GOOGLE_CONFIG.webAppUrl
+// Export functions for global access
+if (typeof window !== 'undefined') {
+    window.GoogleSheets = {
+        initialize: initializeGoogleSheets,
+        configure: configure,
+        syncData: syncData,
+        addVehicle: addVehicle,
+        updateVehicle: updateVehicle,
+        deleteVehicle: deleteVehicle,
+        addMaintenanceRecord: addMaintenanceRecord,
+        addReceipt: addReceipt,
+        uploadImage: uploadImage
     };
 }
 
-// Initialize on load
+// Auto-initialize when loaded
 document.addEventListener('DOMContentLoaded', function() {
-    // Load saved web app URL
-    if (window.APP) {
-        const savedUrl = window.APP.getFromStorage('webAppUrl');
-        if (savedUrl) {
-            GOOGLE_CONFIG.webAppUrl = savedUrl;
-        }
-    }
-    
     initializeGoogleSheets();
 });
-
-// Export functions for global use
-window.GoogleSheets = {
-    configure: configureWebAppUrl,
-    sync: syncData,
-    getStatus: getConfigurationStatus,
-    vehicles: {
-        add: addVehicle,
-        update: updateVehicle,
-        delete: deleteVehicle
-    },
-    maintenance: {
-        add: addMaintenanceRecord
-    },
-    receipts: {
-        add: addReceipt
-    },
-    upload: uploadImage
-};
-
