@@ -14,7 +14,7 @@ Change Log:
 
 // Google Sheets Configuration
 const GOOGLE_CONFIG = {
-    webAppUrl: 'https://script.google.com/macros/s/AKfycbx-ly25-P1Z2DG6vAdVnRlHs1ciuTPNZFOi9kwiN_gYu8OBNQTGL8hpVb4y0Tm5AUeo/exec',
+    webAppUrl: 'https://script.google.com/macros/s/AKfycbwus8t3VTNH_rQcunAPibpYvOj6GrFoRtLbnVfURNN8BmP4f6vvyYptTa2DSq-ExEPP/exec',
     apiVersion: 'v1',
     timeout: 30000,
     retryAttempts: 3,
