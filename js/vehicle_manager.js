@@ -1,6 +1,6 @@
 /*
 Name: vehicle_manager.js
-Version: 1.0.2
+Version: 1.0.3
 Purpose: Vehicle management functionality for the Vehicle Maintenance Manager
 Path: /home/ubuntu/vehicle_maintenance_app/js/vehicle_manager.js
 Copyright: 2025 Superior Networks LLC
@@ -31,6 +31,7 @@ Change Log:
 2025-08-19 v1.0.0 - Initial release (Dwain Henderson Jr)
 2025-08-19 v1.0.1 - Added Google Sheets integration (Dwain Henderson Jr)
 2025-08-20 v1.0.2 - Fixed vehicle saving with proper async handling (Dwain Henderson Jr)
+2025-08-20 v1.0.3 - Fixed event listeners and form submission handling (Dwain Henderson Jr)
 */
 
 // Vehicle management state
@@ -42,29 +43,51 @@ let currentEditingVehicle = null;
 function initializeVehicleManager() {
     console.log('Initializing Vehicle Manager...');
     
-    // Load vehicles on page load
+    // Wait for DOM to be fully loaded
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', setupVehicleManager);
+    } else {
+        setupVehicleManager();
+    }
+}
+
+/**
+ * Set up vehicle manager after DOM is ready
+ */
+function setupVehicleManager() {
+    console.log('Setting up Vehicle Manager...');
+    
+    // Load vehicles
     loadVehicles();
     
     // Set up event listeners
     setupEventListeners();
     
-    console.log('Vehicle Manager initialized');
+    console.log('Vehicle Manager initialized successfully');
 }
 
 /**
  * Set up event listeners
  */
 function setupEventListeners() {
+    console.log('Setting up event listeners...');
+    
     // Add vehicle button
     const addVehicleBtn = document.getElementById('addVehicleBtn');
     if (addVehicleBtn) {
         addVehicleBtn.addEventListener('click', openAddVehicleModal);
+        console.log('✅ Add vehicle button listener attached');
+    } else {
+        console.warn('❌ Add vehicle button not found');
     }
     
     // Vehicle form submission
     const vehicleForm = document.getElementById('vehicleForm');
     if (vehicleForm) {
         vehicleForm.addEventListener('submit', handleVehicleFormSubmit);
+        console.log('✅ Vehicle form listener attached');
+    } else {
+        console.warn('❌ Vehicle form not found');
     }
     
     // Modal close buttons
@@ -72,6 +95,7 @@ function setupEventListeners() {
     closeButtons.forEach(button => {
         button.addEventListener('click', closeModal);
     });
+    console.log(`✅ ${closeButtons.length} close button listeners attached`);
     
     // Close modal when clicking outside
     const modal = document.getElementById('vehicleModal');
@@ -81,6 +105,7 @@ function setupEventListeners() {
                 closeModal();
             }
         });
+        console.log('✅ Modal overlay listener attached');
     }
 }
 
@@ -104,11 +129,6 @@ function loadVehicles() {
         // Display vehicles
         displayVehicles(vehicles);
         
-        // Update dashboard stats if on dashboard page
-        if (typeof updateDashboardStats === 'function') {
-            updateDashboardStats();
-        }
-        
     } catch (error) {
         console.error('Failed to load vehicles:', error);
         
@@ -124,13 +144,16 @@ function loadVehicles() {
 function displayVehicles(vehicles) {
     const vehicleList = document.getElementById('vehicleList');
     if (!vehicleList) {
-        console.warn('Vehicle list container not found');
+        console.error('Vehicle list container not found');
         return;
     }
+    
+    console.log(`Displaying ${vehicles.length} vehicles`);
     
     if (!vehicles || vehicles.length === 0) {
         vehicleList.innerHTML = `
             <div class="empty-state">
+                <div class="empty-icon">🚗</div>
                 <h3>No Vehicles Added</h3>
                 <p>Add your first vehicle to get started with maintenance tracking.</p>
                 <button class="btn btn-primary" onclick="openAddVehicleModal()">
@@ -247,6 +270,8 @@ function formatMileage(mileage) {
  * Open add vehicle modal
  */
 function openAddVehicleModal() {
+    console.log('Opening add vehicle modal...');
+    
     currentEditingVehicle = null;
     
     // Reset form
@@ -280,6 +305,8 @@ function openAddVehicleModal() {
  */
 function editVehicle(vehicleId) {
     try {
+        console.log('Editing vehicle:', vehicleId);
+        
         // Find vehicle
         const vehicles = window.APP ? window.APP.getFromStorage('vehicles') || [] : [];
         const vehicle = vehicles.find(v => v.vehicle_id === vehicleId);
@@ -396,6 +423,7 @@ async function deleteVehicle(vehicleId) {
  * Handle vehicle form submission
  */
 function handleVehicleFormSubmit(e) {
+    console.log('Form submitted!', e);
     e.preventDefault();
     
     if (currentEditingVehicle) {
@@ -409,6 +437,8 @@ function handleVehicleFormSubmit(e) {
  * Save new vehicle
  */
 async function saveVehicle() {
+    console.log('Saving vehicle...');
+    
     const form = document.getElementById('vehicleForm');
     const formData = new FormData(form);
     
@@ -439,7 +469,7 @@ async function saveVehicle() {
     };
     
     try {
-        console.log('Saving vehicle:', vehicleData);
+        console.log('Saving vehicle data:', vehicleData);
         
         // Show loading
         if (window.APP) {
@@ -603,6 +633,8 @@ async function updateVehicle() {
  * Close modal
  */
 function closeModal() {
+    console.log('Closing modal...');
+    
     const modal = document.getElementById('vehicleModal');
     if (modal) {
         modal.style.display = 'none';
@@ -618,23 +650,11 @@ function closeModal() {
     currentEditingVehicle = null;
 }
 
-/**
- * Search vehicles
- */
-function searchVehicles(searchTerm) {
-    if (!searchTerm) {
-        loadVehicles();
-        return;
-    }
-    
-    const vehicles = window.APP ? window.APP.getFromStorage('vehicles') || [] : [];
-    const filteredVehicles = vehicles.filter(vehicle => {
-        const searchString = `${vehicle.make} ${vehicle.model} ${vehicle.year} ${vehicle.color} ${vehicle.license_plate} ${vehicle.vin}`.toLowerCase();
-        return searchString.includes(searchTerm.toLowerCase());
-    });
-    
-    displayVehicles(filteredVehicles);
-}
+// Global functions for onclick handlers
+window.openAddVehicleModal = openAddVehicleModal;
+window.editVehicle = editVehicle;
+window.deleteVehicle = deleteVehicle;
+window.closeModal = closeModal;
 
 // Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
@@ -652,7 +672,6 @@ if (typeof window !== 'undefined') {
         openAddVehicleModal: openAddVehicleModal,
         editVehicle: editVehicle,
         deleteVehicle: deleteVehicle,
-        searchVehicles: searchVehicles,
         closeModal: closeModal
     };
 }
