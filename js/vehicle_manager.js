@@ -1,171 +1,117 @@
 /*
 Name: vehicle_manager.js
-Version: 1.0.0
-Purpose: Vehicle management functionality for adding, editing, and managing vehicle information
+Version: 1.0.2
+Purpose: Vehicle management functionality for the Vehicle Maintenance Manager
 Path: /home/ubuntu/vehicle_maintenance_app/js/vehicle_manager.js
 Copyright: 2025 Superior Networks LLC
 
 Key Features:
-- Add new vehicles with comprehensive information
-- Edit existing vehicle details
-- Delete vehicles with confirmation
-- Vehicle photo upload and preview
-- Form validation and error handling
-- Vehicle list display and management
-- Search and filter capabilities
-- Mobile-responsive interface handling
+- Add, edit, and delete vehicles
+- Vehicle form validation
+- Modal management for vehicle forms
+- Integration with Google Sheets backend
+- Local storage fallback
+- Responsive vehicle list display
 
 Input: 
-- User form submissions (vehicle data)
-- File uploads (vehicle photos)
-- User interactions (edit, delete, search)
+- User form data for vehicle information
+- Vehicle management actions (add, edit, delete)
 
 Output:
-- Vehicle management interface updates
-- Form validation feedback
-- Success/error notifications
-- Updated vehicle listings
+- Updated vehicle list display
+- Saved vehicle data to local storage and Google Sheets
+- User feedback messages
 
 Dependencies:
-- app.js (core application functions)
-- google_sheets.js (data persistence)
-- Modern browser with ES6+ support
+- app.js for core functionality
+- google_sheets.js for cloud storage
+- Modern browser with ES6 support
 
 Change Log:
 2025-08-19 v1.0.0 - Initial release (Dwain Henderson Jr)
+2025-08-19 v1.0.1 - Added Google Sheets integration (Dwain Henderson Jr)
+2025-08-20 v1.0.2 - Fixed vehicle saving with proper async handling (Dwain Henderson Jr)
 */
 
-// Vehicle Manager State
-let vehicleManagerState = {
-    vehicles: [],
-    currentVehicle: null,
-    isEditing: false,
-    searchTerm: '',
-    sortBy: 'make'
-};
-
-// DOM Elements
-let vehicleElements = {
-    addVehicleBtn: null,
-    addFirstVehicleBtn: null,
-    vehiclesContainer: null,
-    noVehiclesMessage: null,
-    vehicleModal: null,
-    vehicleForm: null,
-    modalTitle: null,
-    saveVehicleBtn: null,
-    deleteModal: null,
-    photoPreview: null
-};
-
-// Initialize Vehicle Manager
-document.addEventListener('DOMContentLoaded', function() {
-    // Only initialize if we're on the vehicle manager page
-    if (window.location.pathname.includes('vehicle_manager.html') || 
-        document.getElementById('vehiclesContainer')) {
-        initializeVehicleManager();
-    }
-});
+// Vehicle management state
+let currentEditingVehicle = null;
 
 /**
- * Initialize Vehicle Manager
+ * Initialize vehicle manager
  */
 function initializeVehicleManager() {
     console.log('Initializing Vehicle Manager...');
     
-    // Cache DOM elements
-    cacheVehicleElements();
+    // Load vehicles on page load
+    loadVehicles();
     
     // Set up event listeners
-    setupVehicleEventListeners();
-    
-    // Load vehicles data
-    loadVehicles();
+    setupEventListeners();
     
     console.log('Vehicle Manager initialized');
 }
 
 /**
- * Cache DOM elements
- */
-function cacheVehicleElements() {
-    vehicleElements.addVehicleBtn = document.getElementById('addVehicleBtn');
-    vehicleElements.addFirstVehicleBtn = document.getElementById('addFirstVehicleBtn');
-    vehicleElements.vehiclesContainer = document.getElementById('vehiclesContainer');
-    vehicleElements.noVehiclesMessage = document.getElementById('noVehiclesMessage');
-    vehicleElements.vehicleModal = document.getElementById('vehicleModal');
-    vehicleElements.vehicleForm = document.getElementById('vehicleForm');
-    vehicleElements.modalTitle = document.getElementById('modalTitle');
-    vehicleElements.saveVehicleBtn = document.getElementById('saveVehicleBtn');
-    vehicleElements.deleteModal = document.getElementById('deleteModal');
-    vehicleElements.photoPreview = document.getElementById('photoPreview');
-}
-
-/**
  * Set up event listeners
  */
-function setupVehicleEventListeners() {
-    // Add vehicle buttons
-    if (vehicleElements.addVehicleBtn) {
-        vehicleElements.addVehicleBtn.addEventListener('click', () => openVehicleModal());
+function setupEventListeners() {
+    // Add vehicle button
+    const addVehicleBtn = document.getElementById('addVehicleBtn');
+    if (addVehicleBtn) {
+        addVehicleBtn.addEventListener('click', openAddVehicleModal);
     }
     
-    if (vehicleElements.addFirstVehicleBtn) {
-        vehicleElements.addFirstVehicleBtn.addEventListener('click', () => openVehicleModal());
+    // Vehicle form submission
+    const vehicleForm = document.getElementById('vehicleForm');
+    if (vehicleForm) {
+        vehicleForm.addEventListener('submit', handleVehicleFormSubmit);
     }
     
     // Modal close buttons
-    const closeButtons = document.querySelectorAll('.modal-close, #cancelBtn');
-    closeButtons.forEach(btn => {
-        btn.addEventListener('click', closeVehicleModal);
+    const closeButtons = document.querySelectorAll('.close-modal');
+    closeButtons.forEach(button => {
+        button.addEventListener('click', closeModal);
     });
     
-    // Form submission
-    if (vehicleElements.vehicleForm) {
-        vehicleElements.vehicleForm.addEventListener('submit', handleVehicleSubmit);
-    }
-    
-    // Photo upload
-    const photoInput = document.getElementById('vehiclePhoto');
-    if (photoInput && vehicleElements.photoPreview) {
-        photoInput.addEventListener('change', (e) => {
-            window.APP.handleImageUpload(e.target, vehicleElements.photoPreview);
+    // Close modal when clicking outside
+    const modal = document.getElementById('vehicleModal');
+    if (modal) {
+        modal.addEventListener('click', function(e) {
+            if (e.target === modal) {
+                closeModal();
+            }
         });
     }
-    
-    // Delete confirmation
-    const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
-    if (confirmDeleteBtn) {
-        confirmDeleteBtn.addEventListener('click', confirmDeleteVehicle);
-    }
-    
-    const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
-    if (cancelDeleteBtn) {
-        cancelDeleteBtn.addEventListener('click', closeDeleteModal);
-    }
-    
-    // Close modals when clicking outside
-    document.addEventListener('click', (e) => {
-        if (e.target.classList.contains('modal-overlay')) {
-            closeVehicleModal();
-            closeDeleteModal();
-        }
-    });
 }
 
 /**
- * Load vehicles data
+ * Load and display vehicles
  */
 function loadVehicles() {
     try {
-        // Get vehicles from app state or local storage
-        vehicleManagerState.vehicles = window.APP ? 
-            window.APP.state.vehicles || window.APP.getFromStorage('vehicles') || [] : [];
+        console.log('Loading vehicles...');
         
-        displayVehicles();
+        // Get vehicles from app state or local storage
+        let vehicles = [];
+        if (window.APP && window.APP.state && window.APP.state.vehicles) {
+            vehicles = window.APP.state.vehicles;
+        } else if (window.APP) {
+            vehicles = window.APP.getFromStorage('vehicles') || [];
+        }
+        
+        console.log(`Found ${vehicles.length} vehicles`);
+        
+        // Display vehicles
+        displayVehicles(vehicles);
+        
+        // Update dashboard stats if on dashboard page
+        if (typeof updateDashboardStats === 'function') {
+            updateDashboardStats();
+        }
         
     } catch (error) {
         console.error('Failed to load vehicles:', error);
+        
         if (window.APP) {
             window.APP.showToast('Failed to load vehicles', 'error');
         }
@@ -173,524 +119,378 @@ function loadVehicles() {
 }
 
 /**
- * Display vehicles
+ * Display vehicles in the list
  */
-function displayVehicles() {
-    if (!vehicleElements.vehiclesContainer) return;
-    
-    const vehicles = vehicleManagerState.vehicles;
-    
-    if (vehicles.length === 0) {
-        showNoVehiclesMessage();
+function displayVehicles(vehicles) {
+    const vehicleList = document.getElementById('vehicleList');
+    if (!vehicleList) {
+        console.warn('Vehicle list container not found');
         return;
     }
     
-    hideNoVehiclesMessage();
-    
-    // Filter and sort vehicles
-    const filteredVehicles = filterAndSortVehicles(vehicles);
-    
-    // Generate HTML
-    const vehiclesHTML = filteredVehicles.map(vehicle => createVehicleHTML(vehicle)).join('');
-    
-    vehicleElements.vehiclesContainer.innerHTML = vehiclesHTML;
-    
-    // Add event listeners to vehicle items
-    addVehicleItemListeners();
-}
-
-/**
- * Filter and sort vehicles
- */
-function filterAndSortVehicles(vehicles) {
-    let filtered = vehicles;
-    
-    // Apply search filter
-    if (vehicleManagerState.searchTerm) {
-        const term = vehicleManagerState.searchTerm.toLowerCase();
-        filtered = vehicles.filter(vehicle => 
-            vehicle.make.toLowerCase().includes(term) ||
-            vehicle.model.toLowerCase().includes(term) ||
-            vehicle.year.toString().includes(term) ||
-            (vehicle.license_plate && vehicle.license_plate.toLowerCase().includes(term))
-        );
+    if (!vehicles || vehicles.length === 0) {
+        vehicleList.innerHTML = `
+            <div class="empty-state">
+                <h3>No Vehicles Added</h3>
+                <p>Add your first vehicle to get started with maintenance tracking.</p>
+                <button class="btn btn-primary" onclick="openAddVehicleModal()">
+                    <i class="fas fa-plus"></i> Add Vehicle
+                </button>
+            </div>
+        `;
+        return;
     }
     
-    // Apply sorting
-    filtered.sort((a, b) => {
-        switch (vehicleManagerState.sortBy) {
-            case 'make':
-                return a.make.localeCompare(b.make);
-            case 'year':
-                return b.year - a.year;
-            case 'mileage':
-                return (b.current_mileage || 0) - (a.current_mileage || 0);
-            default:
-                return a.make.localeCompare(b.make);
-        }
-    });
-    
-    return filtered;
-}
-
-/**
- * Create vehicle HTML
- */
-function createVehicleHTML(vehicle) {
-    const warrantyStatus = getWarrantyStatus(vehicle.warranty_expiration);
-    const insuranceStatus = getInsuranceStatus(vehicle.insurance_expiration);
-    const registrationStatus = getRegistrationStatus(vehicle.registration_expiration);
-    
-    return `
-        <div class="vehicle-item" data-vehicle-id="${vehicle.vehicle_id}">
-            <div class="vehicle-item-header">
-                <div>
-                    <h3 class="vehicle-title">${vehicle.year} ${vehicle.make} ${vehicle.model}</h3>
-                    <p class="vehicle-subtitle">${vehicle.license_plate || 'No License Plate'}</p>
-                </div>
+    vehicleList.innerHTML = vehicles.map(vehicle => `
+        <div class="vehicle-card" data-vehicle-id="${vehicle.vehicle_id}">
+            <div class="vehicle-header">
+                <h3>${vehicle.year} ${vehicle.make} ${vehicle.model}</h3>
                 <div class="vehicle-actions">
-                    <button class="btn-icon btn-edit" onclick="editVehicle('${vehicle.vehicle_id}')" title="Edit Vehicle">
-                        ✏️
+                    <button class="btn btn-sm btn-secondary" onclick="editVehicle('${vehicle.vehicle_id}')">
+                        <i class="fas fa-edit"></i> Edit
                     </button>
-                    <button class="btn-icon btn-delete" onclick="deleteVehicle('${vehicle.vehicle_id}')" title="Delete Vehicle">
-                        🗑️
+                    <button class="btn btn-sm btn-danger" onclick="deleteVehicle('${vehicle.vehicle_id}')">
+                        <i class="fas fa-trash"></i> Delete
                     </button>
                 </div>
             </div>
             
             <div class="vehicle-details">
-                ${vehicle.vin ? `
-                    <div class="vehicle-detail">
-                        <span class="detail-label">VIN</span>
-                        <span class="detail-value">${vehicle.vin}</span>
-                    </div>
-                ` : ''}
-                
-                ${vehicle.current_mileage ? `
-                    <div class="vehicle-detail">
-                        <span class="detail-label">Mileage</span>
-                        <span class="detail-value">${window.APP ? window.APP.formatNumber(vehicle.current_mileage) : vehicle.current_mileage} miles</span>
-                    </div>
-                ` : ''}
-                
-                ${vehicle.warranty_expiration ? `
-                    <div class="vehicle-detail">
-                        <span class="detail-label">Warranty</span>
-                        <span class="detail-value">
-                            <span class="status-badge ${warrantyStatus.class}">${warrantyStatus.text}</span>
-                        </span>
-                    </div>
-                ` : ''}
-                
-                ${vehicle.insurance_expiration ? `
-                    <div class="vehicle-detail">
-                        <span class="detail-label">Insurance</span>
-                        <span class="detail-value">
-                            <span class="status-badge ${insuranceStatus.class}">${insuranceStatus.text}</span>
-                        </span>
-                    </div>
-                ` : ''}
-                
-                ${vehicle.registration_expiration ? `
-                    <div class="vehicle-detail">
-                        <span class="detail-label">Registration</span>
-                        <span class="detail-value">
-                            <span class="status-badge ${registrationStatus.class}">${registrationStatus.text}</span>
-                        </span>
-                    </div>
-                ` : ''}
-                
-                ${vehicle.purchase_date ? `
-                    <div class="vehicle-detail">
-                        <span class="detail-label">Purchase Date</span>
-                        <span class="detail-value">${window.APP ? window.APP.formatDate(vehicle.purchase_date) : vehicle.purchase_date}</span>
-                    </div>
-                ` : ''}
+                <div class="detail-row">
+                    <span class="label">Color:</span>
+                    <span class="value">${vehicle.color || 'Not specified'}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="label">License Plate:</span>
+                    <span class="value">${vehicle.license_plate || 'Not specified'}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="label">Current Mileage:</span>
+                    <span class="value">${formatMileage(vehicle.current_mileage)}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="label">VIN:</span>
+                    <span class="value">${vehicle.vin || 'Not specified'}</span>
+                </div>
+            </div>
+            
+            <div class="vehicle-status">
+                ${getVehicleStatusBadges(vehicle)}
             </div>
         </div>
-    `;
+    `).join('');
 }
 
 /**
- * Get warranty status
+ * Get status badges for vehicle
  */
-function getWarrantyStatus(warrantyDate) {
-    if (!warrantyDate) return { text: 'Unknown', class: 'status-warning' };
-    
+function getVehicleStatusBadges(vehicle) {
+    const badges = [];
     const today = new Date();
-    const warranty = new Date(warrantyDate);
-    const daysUntilExpiry = Math.ceil((warranty - today) / (1000 * 60 * 60 * 24));
     
-    if (daysUntilExpiry < 0) {
-        return { text: 'Expired', class: 'status-danger' };
-    } else if (daysUntilExpiry <= 30) {
-        return { text: `${daysUntilExpiry} days left`, class: 'status-warning' };
-    } else {
-        return { text: window.APP ? window.APP.formatDate(warrantyDate) : warrantyDate, class: 'status-good' };
-    }
-}
-
-/**
- * Get insurance status
- */
-function getInsuranceStatus(insuranceDate) {
-    if (!insuranceDate) return { text: 'Unknown', class: 'status-warning' };
-    
-    const today = new Date();
-    const insurance = new Date(insuranceDate);
-    const daysUntilExpiry = Math.ceil((insurance - today) / (1000 * 60 * 60 * 24));
-    
-    if (daysUntilExpiry < 0) {
-        return { text: 'Expired', class: 'status-danger' };
-    } else if (daysUntilExpiry <= 30) {
-        return { text: `${daysUntilExpiry} days left`, class: 'status-warning' };
-    } else {
-        return { text: window.APP ? window.APP.formatDate(insuranceDate) : insuranceDate, class: 'status-good' };
-    }
-}
-
-/**
- * Get registration status
- */
-function getRegistrationStatus(registrationDate) {
-    if (!registrationDate) return { text: 'Unknown', class: 'status-warning' };
-    
-    const today = new Date();
-    const registration = new Date(registrationDate);
-    const daysUntilExpiry = Math.ceil((registration - today) / (1000 * 60 * 60 * 24));
-    
-    if (daysUntilExpiry < 0) {
-        return { text: 'Expired', class: 'status-danger' };
-    } else if (daysUntilExpiry <= 30) {
-        return { text: `${daysUntilExpiry} days left`, class: 'status-warning' };
-    } else {
-        return { text: window.APP ? window.APP.formatDate(registrationDate) : registrationDate, class: 'status-good' };
-    }
-}
-
-/**
- * Add event listeners to vehicle items
- */
-function addVehicleItemListeners() {
-    // Event listeners are added via onclick attributes in the HTML
-    // This approach is used for simplicity and compatibility
-}
-
-/**
- * Show no vehicles message
- */
-function showNoVehiclesMessage() {
-    if (vehicleElements.noVehiclesMessage) {
-        vehicleElements.noVehiclesMessage.style.display = 'block';
-    }
-    if (vehicleElements.vehiclesContainer) {
-        vehicleElements.vehiclesContainer.innerHTML = '';
-    }
-}
-
-/**
- * Hide no vehicles message
- */
-function hideNoVehiclesMessage() {
-    if (vehicleElements.noVehiclesMessage) {
-        vehicleElements.noVehiclesMessage.style.display = 'none';
-    }
-}
-
-/**
- * Open vehicle modal
- */
-function openVehicleModal(vehicleId = null) {
-    vehicleManagerState.isEditing = !!vehicleId;
-    vehicleManagerState.currentVehicle = vehicleId;
-    
-    if (vehicleElements.modalTitle) {
-        vehicleElements.modalTitle.textContent = vehicleId ? 'Edit Vehicle' : 'Add New Vehicle';
-    }
-    
-    if (vehicleElements.saveVehicleBtn) {
-        const saveText = vehicleElements.saveVehicleBtn.querySelector('#saveButtonText');
-        if (saveText) {
-            saveText.textContent = vehicleId ? 'Update Vehicle' : 'Save Vehicle';
+    // Check warranty expiration
+    if (vehicle.warranty_expiration) {
+        const warrantyDate = new Date(vehicle.warranty_expiration);
+        const daysUntilExpiry = Math.ceil((warrantyDate - today) / (1000 * 60 * 60 * 24));
+        
+        if (daysUntilExpiry < 0) {
+            badges.push('<span class="badge badge-danger">Warranty Expired</span>');
+        } else if (daysUntilExpiry < 30) {
+            badges.push('<span class="badge badge-warning">Warranty Expiring Soon</span>');
         }
     }
     
-    // Populate form if editing
-    if (vehicleId) {
-        populateVehicleForm(vehicleId);
-    } else {
-        resetVehicleForm();
+    // Check insurance expiration
+    if (vehicle.insurance_expiration) {
+        const insuranceDate = new Date(vehicle.insurance_expiration);
+        const daysUntilExpiry = Math.ceil((insuranceDate - today) / (1000 * 60 * 60 * 24));
+        
+        if (daysUntilExpiry < 0) {
+            badges.push('<span class="badge badge-danger">Insurance Expired</span>');
+        } else if (daysUntilExpiry < 30) {
+            badges.push('<span class="badge badge-warning">Insurance Expiring Soon</span>');
+        }
     }
     
-    if (vehicleElements.vehicleModal) {
-        vehicleElements.vehicleModal.classList.add('active');
+    // Check registration expiration
+    if (vehicle.registration_expiration) {
+        const registrationDate = new Date(vehicle.registration_expiration);
+        const daysUntilExpiry = Math.ceil((registrationDate - today) / (1000 * 60 * 60 * 24));
+        
+        if (daysUntilExpiry < 0) {
+            badges.push('<span class="badge badge-danger">Registration Expired</span>');
+        } else if (daysUntilExpiry < 30) {
+            badges.push('<span class="badge badge-warning">Registration Expiring Soon</span>');
+        }
+    }
+    
+    return badges.join(' ');
+}
+
+/**
+ * Format mileage display
+ */
+function formatMileage(mileage) {
+    if (!mileage || mileage === '0') {
+        return 'Not specified';
+    }
+    
+    const miles = parseInt(mileage);
+    if (isNaN(miles)) {
+        return mileage;
+    }
+    
+    return miles.toLocaleString() + ' miles';
+}
+
+/**
+ * Open add vehicle modal
+ */
+function openAddVehicleModal() {
+    currentEditingVehicle = null;
+    
+    // Reset form
+    const form = document.getElementById('vehicleForm');
+    if (form) {
+        form.reset();
+    }
+    
+    // Update modal title
+    const modalTitle = document.getElementById('modalTitle');
+    if (modalTitle) {
+        modalTitle.textContent = 'Add New Vehicle';
+    }
+    
+    // Show modal
+    const modal = document.getElementById('vehicleModal');
+    if (modal) {
+        modal.style.display = 'block';
+        document.body.style.overflow = 'hidden';
+    }
+    
+    // Focus on first input
+    const firstInput = document.querySelector('#vehicleForm input');
+    if (firstInput) {
+        setTimeout(() => firstInput.focus(), 100);
     }
 }
 
 /**
- * Close vehicle modal
+ * Edit vehicle
  */
-function closeVehicleModal() {
-    if (vehicleElements.vehicleModal) {
-        vehicleElements.vehicleModal.classList.remove('active');
+function editVehicle(vehicleId) {
+    try {
+        // Find vehicle
+        const vehicles = window.APP ? window.APP.getFromStorage('vehicles') || [] : [];
+        const vehicle = vehicles.find(v => v.vehicle_id === vehicleId);
+        
+        if (!vehicle) {
+            if (window.APP) {
+                window.APP.showToast('Vehicle not found', 'error');
+            }
+            return;
+        }
+        
+        currentEditingVehicle = vehicle;
+        
+        // Populate form
+        populateVehicleForm(vehicle);
+        
+        // Update modal title
+        const modalTitle = document.getElementById('modalTitle');
+        if (modalTitle) {
+            modalTitle.textContent = 'Edit Vehicle';
+        }
+        
+        // Show modal
+        const modal = document.getElementById('vehicleModal');
+        if (modal) {
+            modal.style.display = 'block';
+            document.body.style.overflow = 'hidden';
+        }
+        
+    } catch (error) {
+        console.error('Failed to edit vehicle:', error);
+        
+        if (window.APP) {
+            window.APP.showToast('Failed to load vehicle for editing', 'error');
+        }
     }
-    
-    resetVehicleForm();
-    vehicleManagerState.currentVehicle = null;
-    vehicleManagerState.isEditing = false;
 }
 
 /**
- * Populate vehicle form for editing
+ * Populate vehicle form with data
  */
-function populateVehicleForm(vehicleId) {
-    const vehicle = vehicleManagerState.vehicles.find(v => v.vehicle_id === vehicleId);
-    if (!vehicle) return;
+function populateVehicleForm(vehicle) {
+    const form = document.getElementById('vehicleForm');
+    if (!form) return;
     
     // Populate form fields
-    const fields = [
-        'make', 'model', 'year', 'color', 'vin', 'license_plate',
-        'current_mileage', 'purchase_date', 'warranty_expiration',
-        'insurance_expiration', 'registration_expiration', 'notes'
-    ];
+    const fields = ['make', 'model', 'year', 'color', 'vin', 'license_plate', 
+                   'current_mileage', 'purchase_date', 'warranty_expiration', 
+                   'insurance_expiration', 'registration_expiration'];
     
     fields.forEach(field => {
-        const element = document.getElementById('vehicle' + field.charAt(0).toUpperCase() + field.slice(1).replace('_', ''));
-        if (element && vehicle[field]) {
-            element.value = vehicle[field];
+        const input = form.querySelector(`[name="${field}"]`);
+        if (input && vehicle[field]) {
+            input.value = vehicle[field];
         }
     });
 }
 
 /**
- * Reset vehicle form
+ * Delete vehicle
  */
-function resetVehicleForm() {
-    if (vehicleElements.vehicleForm) {
-        vehicleElements.vehicleForm.reset();
+async function deleteVehicle(vehicleId) {
+    if (!confirm('Are you sure you want to delete this vehicle? This action cannot be undone.')) {
+        return;
     }
     
-    if (vehicleElements.photoPreview) {
-        vehicleElements.photoPreview.innerHTML = '';
-        vehicleElements.photoPreview.classList.remove('active');
+    try {
+        console.log('Deleting vehicle:', vehicleId);
+        
+        // Show loading
+        if (window.APP) {
+            window.APP.showLoading('Deleting vehicle...');
+        }
+        
+        // Delete from local storage
+        if (window.APP) {
+            const vehicles = window.APP.getFromStorage('vehicles') || [];
+            const filteredVehicles = vehicles.filter(v => v.vehicle_id !== vehicleId);
+            window.APP.saveToStorage('vehicles', filteredVehicles);
+            window.APP.state.vehicles = filteredVehicles;
+        }
+        
+        // Delete from Google Sheets if available
+        if (window.GoogleSheets && window.GoogleSheets.deleteVehicle) {
+            try {
+                await window.GoogleSheets.deleteVehicle(vehicleId);
+            } catch (error) {
+                console.warn('Failed to delete from cloud, deleted locally:', error);
+            }
+        }
+        
+        // Show success message
+        if (window.APP) {
+            window.APP.showToast('Vehicle deleted successfully', 'success');
+        }
+        
+        // Reload vehicles
+        loadVehicles();
+        
+    } catch (error) {
+        console.error('Failed to delete vehicle:', error);
+        
+        if (window.APP) {
+            window.APP.showToast('Failed to delete vehicle: ' + error.message, 'error');
+        }
+    } finally {
+        if (window.APP) {
+            window.APP.hideLoading();
+        }
     }
 }
 
 /**
  * Handle vehicle form submission
  */
-async function handleVehicleSubmit(event) {
-    event.preventDefault();
+function handleVehicleFormSubmit(e) {
+    e.preventDefault();
     
-    try {
-        // Validate form
-        const validation = window.APP ? window.APP.validateForm(vehicleElements.vehicleForm) : { isValid: true, errors: [] };
-        
-        if (!validation.isValid) {
-            if (window.APP) {
-                window.APP.showToast(validation.errors.join(', '), 'error');
-            }
-            return;
-        }
-        
-        // Get form data
-        const formData = new FormData(vehicleElements.vehicleForm);
-        const vehicleData = Object.fromEntries(formData.entries());
-        
-        // Handle photo upload
-        const photoFile = formData.get('photo');
-        if (photoFile && photoFile.size > 0) {
-            if (window.GoogleSheets && window.GoogleSheets.upload) {
-                try {
-                    vehicleData.photo_url = await window.GoogleSheets.upload(photoFile, 'vehicle_photos');
-                } catch (error) {
-                    console.warn('Photo upload failed:', error);
-                    if (window.APP) {
-                        window.APP.showToast('Vehicle saved, but photo upload failed', 'warning');
-                    }
-                }
-            }
-        }
-        
-        if (window.APP) {
-            window.APP.showLoading('Saving vehicle...');
-        }
-        
-        let result;
-        if (vehicleManagerState.isEditing) {
-            // Update existing vehicle
-            result = await updateVehicleData(vehicleManagerState.currentVehicle, vehicleData);
-        } else {
-            // Add new vehicle
-            result = await addVehicleData(vehicleData);
-        }
-        
-        if (result) {
-            // Refresh display
-            loadVehicles();
-            
-            // Close modal
-            closeVehicleModal();
-            
-            if (window.APP) {
-                window.APP.showToast(
-                    vehicleManagerState.isEditing ? 'Vehicle updated successfully' : 'Vehicle added successfully',
-                    'success'
-                );
-            }
-        }
-        
-    } catch (error) {
-        console.error('Failed to save vehicle:', error);
-        if (window.APP) {
-            window.APP.showToast('Failed to save vehicle', 'error');
-        }
-    } finally {
-        if (window.APP) {
-            window.APP.hideLoading();
-        }
+    if (currentEditingVehicle) {
+        updateVehicle();
+    } else {
+        saveVehicle();
     }
 }
 
 /**
- * Add vehicle data
+ * Save new vehicle
  */
-async function addVehicleData(vehicleData) {
+async function saveVehicle() {
+    const form = document.getElementById('vehicleForm');
+    const formData = new FormData(form);
+    
+    // Validate required fields
+    const make = formData.get('make');
+    const model = formData.get('model');
+    const year = formData.get('year');
+    
+    if (!make || !model || !year) {
+        if (window.APP) {
+            window.APP.showToast('Please fill in Make, Model, and Year', 'error');
+        }
+        return;
+    }
+    
+    const vehicleData = {
+        make: make.trim(),
+        model: model.trim(),
+        year: year.trim(),
+        color: formData.get('color')?.trim() || '',
+        vin: formData.get('vin')?.trim() || '',
+        license_plate: formData.get('license_plate')?.trim() || '',
+        current_mileage: formData.get('current_mileage')?.trim() || '0',
+        purchase_date: formData.get('purchase_date') || '',
+        warranty_expiration: formData.get('warranty_expiration') || '',
+        insurance_expiration: formData.get('insurance_expiration') || '',
+        registration_expiration: formData.get('registration_expiration') || ''
+    };
+    
     try {
-        let result;
+        console.log('Saving vehicle:', vehicleData);
         
-        if (window.GoogleSheets && window.GoogleSheets.vehicles) {
-            result = await window.GoogleSheets.vehicles.add(vehicleData);
+        // Show loading
+        if (window.APP) {
+            window.APP.showLoading('Saving vehicle...');
+        }
+        
+        // Save vehicle using Google Sheets integration
+        let savedVehicle;
+        if (window.GoogleSheets && window.GoogleSheets.addVehicle) {
+            savedVehicle = await window.GoogleSheets.addVehicle(vehicleData);
         } else {
             // Fallback to local storage only
             const vehicleId = window.APP ? window.APP.generateId() : Date.now().toString();
-            result = {
+            savedVehicle = {
                 vehicle_id: vehicleId,
                 ...vehicleData,
                 created_date: new Date().toISOString(),
                 last_updated: new Date().toISOString()
             };
             
-            const vehicles = window.APP ? window.APP.getFromStorage('vehicles') || [] : [];
-            vehicles.push(result);
-            
             if (window.APP) {
+                const vehicles = window.APP.getFromStorage('vehicles') || [];
+                vehicles.push(savedVehicle);
                 window.APP.saveToStorage('vehicles', vehicles);
                 window.APP.state.vehicles = vehicles;
             }
         }
         
-        return result;
+        console.log('Vehicle saved successfully:', savedVehicle);
         
-    } catch (error) {
-        console.error('Failed to add vehicle:', error);
-        throw error;
-    }
-}
-
-/**
- * Update vehicle data
- */
-async function updateVehicleData(vehicleId, vehicleData) {
-    try {
-        let result;
-        
-        if (window.GoogleSheets && window.GoogleSheets.vehicles) {
-            result = await window.GoogleSheets.vehicles.update(vehicleId, vehicleData);
-        } else {
-            // Fallback to local storage only
-            const vehicles = window.APP ? window.APP.getFromStorage('vehicles') || [] : [];
-            const index = vehicles.findIndex(v => v.vehicle_id === vehicleId);
-            
-            if (index !== -1) {
-                result = {
-                    ...vehicles[index],
-                    ...vehicleData,
-                    last_updated: new Date().toISOString()
-                };
-                
-                vehicles[index] = result;
-                
-                if (window.APP) {
-                    window.APP.saveToStorage('vehicles', vehicles);
-                    window.APP.state.vehicles = vehicles;
-                }
-            }
-        }
-        
-        return result;
-        
-    } catch (error) {
-        console.error('Failed to update vehicle:', error);
-        throw error;
-    }
-}
-
-/**
- * Edit vehicle (called from HTML)
- */
-function editVehicle(vehicleId) {
-    openVehicleModal(vehicleId);
-}
-
-/**
- * Delete vehicle (called from HTML)
- */
-function deleteVehicle(vehicleId) {
-    const vehicle = vehicleManagerState.vehicles.find(v => v.vehicle_id === vehicleId);
-    if (!vehicle) return;
-    
-    // Show confirmation modal
-    const deleteVehicleName = document.getElementById('deleteVehicleName');
-    if (deleteVehicleName) {
-        deleteVehicleName.textContent = `${vehicle.year} ${vehicle.make} ${vehicle.model}`;
-    }
-    
-    vehicleManagerState.currentVehicle = vehicleId;
-    
-    if (vehicleElements.deleteModal) {
-        vehicleElements.deleteModal.classList.add('active');
-    }
-}
-
-/**
- * Confirm delete vehicle
- */
-async function confirmDeleteVehicle() {
-    if (!vehicleManagerState.currentVehicle) return;
-    
-    try {
+        // Show success message
         if (window.APP) {
-            window.APP.showLoading('Deleting vehicle...');
+            window.APP.showToast('Vehicle saved successfully!', 'success');
         }
         
-        if (window.GoogleSheets && window.GoogleSheets.vehicles) {
-            await window.GoogleSheets.vehicles.delete(vehicleManagerState.currentVehicle);
-        } else {
-            // Fallback to local storage only
-            const vehicles = window.APP ? window.APP.getFromStorage('vehicles') || [] : [];
-            const filteredVehicles = vehicles.filter(v => v.vehicle_id !== vehicleManagerState.currentVehicle);
-            
-            if (window.APP) {
-                window.APP.saveToStorage('vehicles', filteredVehicles);
-                window.APP.state.vehicles = filteredVehicles;
-            }
-        }
-        
-        // Refresh display
+        // Close modal and refresh
+        closeModal();
         loadVehicles();
         
-        // Close modal
-        closeDeleteModal();
-        
-        if (window.APP) {
-            window.APP.showToast('Vehicle deleted successfully', 'success');
-        }
+        // Trigger sync after a short delay
+        setTimeout(() => {
+            if (window.GoogleSheets && window.GoogleSheets.syncData) {
+                window.GoogleSheets.syncData();
+            }
+        }, 1000);
         
     } catch (error) {
-        console.error('Failed to delete vehicle:', error);
+        console.error('Failed to save vehicle:', error);
+        
         if (window.APP) {
-            window.APP.showToast('Failed to delete vehicle', 'error');
+            window.APP.showToast('Failed to save vehicle: ' + error.message, 'error');
         }
     } finally {
         if (window.APP) {
@@ -700,21 +500,159 @@ async function confirmDeleteVehicle() {
 }
 
 /**
- * Close delete modal
+ * Update existing vehicle
  */
-function closeDeleteModal() {
-    if (vehicleElements.deleteModal) {
-        vehicleElements.deleteModal.classList.remove('active');
+async function updateVehicle() {
+    if (!currentEditingVehicle) {
+        console.error('No vehicle selected for editing');
+        return;
     }
-    vehicleManagerState.currentVehicle = null;
+    
+    const form = document.getElementById('vehicleForm');
+    const formData = new FormData(form);
+    
+    // Validate required fields
+    const make = formData.get('make');
+    const model = formData.get('model');
+    const year = formData.get('year');
+    
+    if (!make || !model || !year) {
+        if (window.APP) {
+            window.APP.showToast('Please fill in Make, Model, and Year', 'error');
+        }
+        return;
+    }
+    
+    const vehicleData = {
+        make: make.trim(),
+        model: model.trim(),
+        year: year.trim(),
+        color: formData.get('color')?.trim() || '',
+        vin: formData.get('vin')?.trim() || '',
+        license_plate: formData.get('license_plate')?.trim() || '',
+        current_mileage: formData.get('current_mileage')?.trim() || '0',
+        purchase_date: formData.get('purchase_date') || '',
+        warranty_expiration: formData.get('warranty_expiration') || '',
+        insurance_expiration: formData.get('insurance_expiration') || '',
+        registration_expiration: formData.get('registration_expiration') || ''
+    };
+    
+    try {
+        console.log('Updating vehicle:', currentEditingVehicle.vehicle_id, vehicleData);
+        
+        // Show loading
+        if (window.APP) {
+            window.APP.showLoading('Updating vehicle...');
+        }
+        
+        // Update vehicle
+        let updatedVehicle;
+        if (window.GoogleSheets && window.GoogleSheets.updateVehicle) {
+            updatedVehicle = await window.GoogleSheets.updateVehicle(currentEditingVehicle.vehicle_id, vehicleData);
+        } else {
+            // Fallback to local storage only
+            updatedVehicle = {
+                ...currentEditingVehicle,
+                ...vehicleData,
+                last_updated: new Date().toISOString()
+            };
+            
+            if (window.APP) {
+                const vehicles = window.APP.getFromStorage('vehicles') || [];
+                const index = vehicles.findIndex(v => v.vehicle_id === currentEditingVehicle.vehicle_id);
+                if (index !== -1) {
+                    vehicles[index] = updatedVehicle;
+                    window.APP.saveToStorage('vehicles', vehicles);
+                    window.APP.state.vehicles = vehicles;
+                }
+            }
+        }
+        
+        console.log('Vehicle updated successfully:', updatedVehicle);
+        
+        // Show success message
+        if (window.APP) {
+            window.APP.showToast('Vehicle updated successfully!', 'success');
+        }
+        
+        // Close modal and refresh
+        closeModal();
+        loadVehicles();
+        
+        // Trigger sync
+        setTimeout(() => {
+            if (window.GoogleSheets && window.GoogleSheets.syncData) {
+                window.GoogleSheets.syncData();
+            }
+        }, 1000);
+        
+    } catch (error) {
+        console.error('Failed to update vehicle:', error);
+        
+        if (window.APP) {
+            window.APP.showToast('Failed to update vehicle: ' + error.message, 'error');
+        }
+    } finally {
+        if (window.APP) {
+            window.APP.hideLoading();
+        }
+    }
 }
 
-// Export functions for global use
-window.VehicleManager = {
-    load: loadVehicles,
-    display: displayVehicles,
-    add: openVehicleModal,
-    edit: editVehicle,
-    delete: deleteVehicle
-};
+/**
+ * Close modal
+ */
+function closeModal() {
+    const modal = document.getElementById('vehicleModal');
+    if (modal) {
+        modal.style.display = 'none';
+        document.body.style.overflow = 'auto';
+    }
+    
+    // Reset form and state
+    const form = document.getElementById('vehicleForm');
+    if (form) {
+        form.reset();
+    }
+    
+    currentEditingVehicle = null;
+}
 
+/**
+ * Search vehicles
+ */
+function searchVehicles(searchTerm) {
+    if (!searchTerm) {
+        loadVehicles();
+        return;
+    }
+    
+    const vehicles = window.APP ? window.APP.getFromStorage('vehicles') || [] : [];
+    const filteredVehicles = vehicles.filter(vehicle => {
+        const searchString = `${vehicle.make} ${vehicle.model} ${vehicle.year} ${vehicle.color} ${vehicle.license_plate} ${vehicle.vin}`.toLowerCase();
+        return searchString.includes(searchTerm.toLowerCase());
+    });
+    
+    displayVehicles(filteredVehicles);
+}
+
+// Initialize when DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+    // Only initialize if we're on the vehicle manager page
+    if (document.getElementById('vehicleList')) {
+        initializeVehicleManager();
+    }
+});
+
+// Export functions for global access
+if (typeof window !== 'undefined') {
+    window.VehicleManager = {
+        initialize: initializeVehicleManager,
+        loadVehicles: loadVehicles,
+        openAddVehicleModal: openAddVehicleModal,
+        editVehicle: editVehicle,
+        deleteVehicle: deleteVehicle,
+        searchVehicles: searchVehicles,
+        closeModal: closeModal
+    };
+}
